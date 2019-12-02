@@ -1,4 +1,15 @@
 
+//valo ohjaus array/ light control
+//tunti ja minuutti/hour and minute
+volatile int valoOn[1];
+volatile int valoOff[1];
+
+//pumppu ohjaus array/pump array
+//delaytime and pump time in minutes
+volatile int pumppu[1];
+
+//master on/off
+volatile bool master = true;
 
 
 //for I2C & time
@@ -25,8 +36,20 @@ boolean relays[10] = {
 int data = 3;
 int clk = 2;
 int clr = 6;
+//needed for RTC library/initialise RTC
+tmElements_t tm;
+//tallenna tämän hetken aika muuttujiin
+//RTC.read(tm);
+unsigned int vminuutit = tm.Minute;
+unsigned int vtunnit = tm.Hour;
+
+
 
 void setup() {
+  //tallenna tämän hetken aika muuttujiin
+  RTC.read(tm);
+  vminuutit = tm.Minute;
+  vtunnit = tm.Hour;
 
   // put your setup code here, to run once:
 
@@ -34,14 +57,88 @@ void setup() {
   pinMode(clk, OUTPUT);
   pinMode(data, OUTPUT);
   pinMode(clr, OUTPUT);
-
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  //valo ohjaus
+  RTC.read(tm);
+  if (master == true && valoOn[0] == tm.Hour && valoOn[1] == tm.Minute) {
+    relays[0] = 1;
 
-  relaytest();
+  }
+  if (master == true && valoOff[0] == tm.Hour && valoOff[1] == tm.Minute) {
+    relays[0] = 0;
 
+  }
+  //pumppu ohjaus
+  //käynnistetään pumppu, jos aikaa on kulunut viiveen verran
+  if (master == true && relays [1] == 0) {
+    if ((vminuutit + pumppu[0]) >= 60) {
+      unsigned int valiMin;
+      unsigned int valiTun;
+
+      valiMin = (vminuutit + pumppu[0]) - 60;
+      valiTun = vtunnit + 1;
+      if (valiTun > 23) {
+        valiTun = 0;
+      }
+      if (master == true && valiTun == tm.Hour && valiMin == tm.Minute) {
+        relays[1] = 1;
+        vminuutit = tm.Minute;
+        vtunnit = tm.Hour;
+      }
+      else if (master == true && vtunnit == tm.Hour && (vminuutit + pumppu[0]) == tm.Minute) {
+        relays[1] = 1;
+        vminuutit = tm.Minute;
+        vtunnit = tm.Hour;
+      }
+    }
+  }
+  //sammutettaan pumppu, jos aikaa kulunut viiveen verran
+  if (master == true && relays [1] == 1) {
+    if ((vminuutit + pumppu[1]) >= 60) {
+      unsigned int valiMin;
+      unsigned int valiTun;
+
+      valiMin = (vminuutit + pumppu[1]) - 60;
+      valiTun = vtunnit + 1;
+      if (valiTun > 23) {
+        valiTun = 0;
+      }
+      if (master == true && valiTun == tm.Hour && valiMin == tm.Minute) {
+        relays[1] = 0;
+        vminuutit = tm.Minute;
+        vtunnit = tm.Hour;
+      }
+      else if (master == true && vtunnit == tm.Hour && (vminuutit + pumppu[1]) == tm.Minute) {
+        relays[1] = 0;
+        vminuutit = tm.Minute;
+        vtunnit = tm.Hour;
+      }
+    }
+
+  }
+//releiden asetus
+setRelays();
+
+  //turn off everything if something is wrong
+  //ota kommentointi pois!
+  /*
+    if (master == false){
+    relays[0] = 0;
+    relays[1] = 0;
+    relays[2] = 0;
+    relays[3] = 0;
+    relays[4] = 0;
+    relays[5] = 0;
+    relays[6] = 0;
+    relays[7] = 0;
+    relays[8] = 0;
+    relays[9] = 0;
+    setRelays();
+
+    }
+  */
 }
 void tick()
 {
@@ -81,6 +178,8 @@ void setRelays()
 
 
 }
+
+
 void relaytest()
 {
   relays[0] = 1;
@@ -114,21 +213,22 @@ void relaytest()
 
   int i;
 
-    for (i =0 ; i< 10;i++)
-    {
-      relays[i]=1;
+  for (i = 0 ; i < 10; i++)
+  {
+    relays[i] = 1;
 
-      setRelays();
+    setRelays();
     //    lcd.clear();
     //    lcd.print ("Testing relay nro");
     //    lcd.setCursor (0,1);
     //    lcd.print (i);
 
-      delay (300);
-      relays[i]=0;
+    delay (300);
+    relays[i] = 0;
 
-      setRelays();}
- 
+    setRelays();
+  }
+
   relays[0] = 1;
   relays[1] = 1;
   relays[2] = 1;
@@ -142,4 +242,19 @@ void relaytest()
   setRelays();
 
 
+}
+
+bool setClock(int tunnit, int minuutit, int pv, int kk, int vuosi) {
+
+  tm.Hour = tunnit;
+  tm.Minute = minuutit;
+  tm.Second = 0;
+  tm.Day = pv;
+  tm.Month = kk;
+  tm.Year = vuosi;
+
+  if (RTC.set)
+    return true;
+  else
+    return false;
 }
